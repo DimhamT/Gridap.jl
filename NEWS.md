@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixes issue [#1119](https://github.com/gridap/Gridap.jl/issues/1119), allowing evaluation of `CellFields` on arbitrary points on periodic meshes. Since PR[#1139](https://github.com/gridap/Gridap.jl/pull/1139).
+- Fixed issue [#1141](https://github.com/gridap/Gridap.jl/issues/1141).
 
 ## [0.19.3] - 2025-07-15
 
