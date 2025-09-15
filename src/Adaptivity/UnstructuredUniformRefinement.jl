@@ -309,11 +309,13 @@ function unstructured_refine_connectivity(cell_ref_conns,cell_l2g,n_cells)
   Table(conn_data,conn_ptrs)
 end
 
-function unstructured_refine_topology(
+function unstructured_refine_grid_and_topology(
   cell_ref_grid,
+  cgrid,
   ctopo,
   cell_map,
-  cell_dface_permutations::AbstractVector)
+  cell_dface_permutations::AbstractVector,
+  has_affine_map::Bool)
   polytopes = get_polytopes(ctopo)
   @notimplementedif !all( map(p->is_n_cube(p) || is_simplex(p),polytopes) )
 
@@ -321,14 +323,21 @@ function unstructured_refine_topology(
   cell_ref_coords = lazy_map(get_node_coordinates,cell_ref_grid)
   cell_ref_conns = lazy_map(get_cell_node_ids,cell_ref_grid)
   cell_type = get_cell_type(ctopo)
-  cell_l2g,n_nodes = unstructured_refine_cell_l2gmap_and_nnodes(
+  cell_topo_l2g,topo_n_nodes = unstructured_refine_cell_l2gmap_and_nnodes(
     ctopo,
     cell_ref_grid,
     cell_dface_permutations
   )
+  cell_grid_l2g,grid_n_nodes = unstructured_refine_cell_l2gmap_and_nnodes(
+    UnstructuredGridTopology(cgrid),
+    cell_ref_grid,
+    cell_dface_permutations
+  )
   n_cells = sum(cell_lncells)
-  coords = unstructured_refine_coordinates(cell_ref_coords,cell_l2g,cell_map,n_nodes)
-  conn = unstructured_refine_connectivity(cell_ref_conns,cell_l2g,n_cells)
+  topo_coords = unstructured_refine_coordinates(cell_ref_coords,cell_topo_l2g,cell_map,topo_n_nodes)
+  topo_conn = unstructured_refine_connectivity(cell_ref_conns,cell_topo_l2g,n_cells)
+  grid_coords = unstructured_refine_coordinates(cell_ref_coords,cell_grid_l2g,cell_map,grid_n_nodes)
+  grid_conn = unstructured_refine_connectivity(cell_ref_conns,cell_grid_l2g,n_cells)
   
   f_cell_type = similar(cell_type,n_cells)
   i = 1
@@ -343,13 +352,23 @@ function unstructured_refine_topology(
   ref_oriented = lazy_map(g->OrientationStyle(g)==Oriented(),cell_ref_grid)
   orientation_style = c_oriented && all(ref_oriented) ? Oriented() : NonOriented()
 
-  UnstructuredGridTopology(
-    coords,
-    conn,
+  topo = UnstructuredGridTopology(
+    topo_coords,
+    topo_conn,
     f_cell_type,
     polytopes,
     orientation_style
   )
+  grid = UnstructuredGrid(
+    grid_coords,
+    grid_conn,
+    get_reffes(cgrid),
+    get_cell_type(topo),
+    OrientationStyle(topo);
+    has_affine_map
+  )
+
+  return grid, topo
 end
 
 """
@@ -411,7 +430,6 @@ function unstructured_refine(
   cell_dface_permutations::AbstractVector;
   has_affine_map::Union{Nothing,Bool}=nothing)
   @assert num_cells(cm) == length(cell_dface_permutations) == length(cell_ref_grid)
-  @notimplementedif num_nodes(cm) != num_vertices(cm) "Periodic cases are not supported now."
 
   ctopo = get_grid_topology(cm)
   cgrid = get_grid(cm)
@@ -433,30 +451,23 @@ function unstructured_refine(
       RefinementRule(WithoutRefinement(),p,g)
     end
   end
-  
-  topo = unstructured_refine_topology(
-    cell_ref_grid,
-    ctopo,
-    cell_map,
-    cell_dface_permutations
-  )
   if has_affine_map isa Nothing
     cell_ref_is_affine = lazy_map(g->_is_affine(get_cell_map(g)),cell_ref_grid)
     has_affine_map = all(cell_ref_is_affine) && _is_affine(cell_map)
   end
-
-  grid = UnstructuredGrid(
-    get_vertex_coordinates(topo),
-    get_faces(topo,num_cell_dims(topo),0),
-    get_reffes(cgrid),
-    get_cell_type(topo),
-    OrientationStyle(topo);
+  
+  grid, topo = unstructured_refine_grid_and_topology(
+    cell_ref_grid,
+    cgrid,
+    ctopo,
+    cell_map,
+    cell_dface_permutations,
     has_affine_map
   )
-
+  
   glue = blocked_refinement_glue(rrules)
   clabeling = get_face_labeling(cm)
-  if all( map(p->is_n_cube(p)||is_simplex(p),polytopes) )
+  if all( map(p->is_n_cube(p)||is_simplex(p),polytopes) ) && (num_vertices(cm) == num_nodes(cm))
     labeling = cube_simplex_refine_facelabeling(glue,ctopo,topo,cell_map,clabeling)
   else
     labeling = refine_face_labeling(clabeling,glue,ctopo,topo)
