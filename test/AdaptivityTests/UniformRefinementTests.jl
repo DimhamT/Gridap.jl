@@ -9,6 +9,12 @@ using Gridap.Adaptivity: uniformly_refine
 
 using ..EdgeBasedRefinementTests: test_grid_transfers
 
+function test_cell_permutations(fm)
+  ftopo = get_grid_topology(fm)
+  cell_perm = get_cell_permutations(ftopo)
+  @test all(map(p -> all(p .== 1), cell_perm))
+end
+
 # Setup base models
 has_affine_map = true
 cart_model = CartesianDiscreteModel((0,1,0,1),(4,4))
@@ -35,21 +41,25 @@ end
 ref_model = refine(model1,n)
 visualize && writevtk(Triangulation(ref_model.model),joinpath(path,"uniform_quad_$n"))
 test_grid_transfers(model1,ref_model,1)
+test_cell_permutations(ref_model)
 
 # TRI
 ref_model = refine(model2,n)
 visualize && writevtk(Triangulation(ref_model.model),joinpath(path,"uniform_tri_$n"))
 test_grid_transfers(model2,ref_model,1)
+test_cell_permutations(ref_model)
 
 # HEX
 ref_model = refine(model3,n)
 visualize && writevtk(Triangulation(ref_model.model),joinpath(path,"uniform_hex_$n"))
 test_grid_transfers(model3,ref_model,1)
+test_cell_permutations(ref_model)
 
 # TET
 ref_model = refine(model4,n)
 visualize && writevtk(Triangulation(ref_model.model),joinpath(path,"uniform_tet_$n"))
 test_grid_transfers(model4,ref_model,1)
+test_cell_permutations(ref_model)
 
 # Mock
 ref_model = refine(model5,n)
@@ -60,6 +70,7 @@ test_grid_transfers(model5,ref_model,1)
 ref_model = refine(model6,n)
 visualize && writevtk(ref_model,joinpath(path,"uniform_periodic_quad_$n"))
 # test_grid_transfers(model6,ref_model,1)
+test_cell_permutations(ref_model)
 
 # Partial refinement
 cell_refine_masks = [1,3,5]
