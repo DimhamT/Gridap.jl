@@ -298,7 +298,7 @@ function _uniform_coordinates(cell_ref_coords, cell_l2g, cell_map, n_nodes)
 end
 
 # Return the connectivity of the uniformly refined mesh.
-function _uniform_connectivity(cell_ref_conns, cell_l2g, n_cells)
+function _uniform_connectivity(cell_ref_conns, cell_polytopes, cell_l2g, n_cells)
   cell_ref_conns = lazy_map(Table, cell_ref_conns)
   conn_ptrs = Vector{Int32}(undef, n_cells+1)
   conn_ptrs[1] = 1
@@ -315,10 +315,19 @@ function _uniform_connectivity(cell_ref_conns, cell_l2g, n_cells)
   cache = array_cache(cell_l2g)
   go = 1
   @inbounds for ci in eachindex(cell_ref_conns)
-    (; data) = cell_ref_conns[ci]
+    (; data, ptrs) = cell_ref_conns[ci]
     n = length(data)
     l2g = getindex!(cache, cell_l2g, ci)
-    conn_data[go:(go+n-1)] = l2g[data]
+    if is_simplex(cell_polytopes[ci])
+      lo = 0
+      for i in 1:length(ptrs) - 1
+        m = ptrs[i+1] - ptrs[i]
+        conn_data[go+lo:go+lo+m-1] = sort(l2g[data[ptrs[i]:ptrs[i+1]-1]])
+        lo += m
+      end
+    else
+      conn_data[go:(go+n-1)] = l2g[data]
+    end
     go += n
   end
   Table(conn_data, conn_ptrs)
@@ -336,6 +345,7 @@ function _uniformly_refine_grid_topology(
   cell_lncells = lazy_map(num_cells, cell_ref_grid)
   cell_ref_coords = lazy_map(get_node_coordinates, cell_ref_grid)
   cell_ref_conns = lazy_map(get_cell_node_ids, cell_ref_grid)
+  cell_polytopes = lazy_map(get_polytope, cell_rr)
   cell_type = get_cell_type(ctopo)
   cell_face_own_vertex_permutations = lazy_map(cell_rr) do rr
     face_vertices = get_face_vertices(rr)
@@ -358,7 +368,7 @@ function _uniformly_refine_grid_topology(
   )
   n_cells = sum(cell_lncells)
   coords = _uniform_coordinates(cell_ref_coords, cell_l2g, cell_map, n_nodes)
-  conn = _uniform_connectivity(cell_ref_conns, cell_l2g, n_cells)
+  conn = _uniform_connectivity(cell_ref_conns, cell_polytopes, cell_l2g, n_cells)
   f_cell_type = similar(cell_type, n_cells)
   i = 1
   @inbounds for ci in eachindex(cell_lncells)
@@ -387,7 +397,7 @@ function _uniformly_refine_grid_topology(
       cell_face_own_vertex_permutations,
     )
     grid_coords = _uniform_coordinates(cell_ref_coords, grid_cell_l2g, cell_map, grid_n_nodes)
-    grid_conn = _uniform_connectivity(cell_ref_conns, grid_cell_l2g, n_cells)
+    grid_conn = _uniform_connectivity(cell_ref_conns, cell_polytopes, grid_cell_l2g, n_cells)
   else
     grid_coords = get_vertex_coordinates(ftopo)
     grid_conn = get_faces(ftopo, num_cell_dims(ftopo), 0)
