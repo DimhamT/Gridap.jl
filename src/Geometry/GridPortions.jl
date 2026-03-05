@@ -11,23 +11,23 @@ struct GridPortion{Dc,Dp,G} <: Grid{Dc,Dp}
   cell_to_parent_cell::Vector{Int32}
   node_to_parent_node::Vector{Int32}
   cell_to_nodes::Table{Int32,Vector{Int32},Vector{Int32}}
+end
   @doc """
       GridPortion(parent::Grid{Dc,Dp},cell_to_parent_cell::Vector{Int32}) where {Dc,Dp}
   """
-  function GridPortion(
-    parent::Grid{Dc,Dp},cell_to_parent_cell::AbstractVector{<:Integer}
+function GridPortion(
+  parent::Grid{Dc,Dp},cell_to_parent_cell::AbstractVector{<:Integer}
   ) where {Dc,Dp}
-    parent_cell_to_parent_nodes = get_cell_node_ids(parent)
-    nparent_nodes = num_nodes(parent)
-    node_to_parent_node, parent_node_to_node = _find_active_nodes(
-      parent_cell_to_parent_nodes,cell_to_parent_cell,nparent_nodes
-    )
-    cell_to_nodes = _renumber_cell_nodes(
-      parent_cell_to_parent_nodes,parent_node_to_node,cell_to_parent_cell
-    )
-    G = typeof(parent)
-    new{Dc,Dp,G}(parent,cell_to_parent_cell,node_to_parent_node,cell_to_nodes)
-  end
+  parent_cell_to_parent_nodes = get_cell_node_ids(parent)
+  nparent_nodes = num_nodes(parent)
+  node_to_parent_node, parent_node_to_node = _find_active_nodes(
+    parent_cell_to_parent_nodes,cell_to_parent_cell,nparent_nodes
+  )
+  cell_to_nodes = _renumber_cell_nodes(
+    parent_cell_to_parent_nodes,parent_node_to_node,cell_to_parent_cell
+  )
+  G = typeof(parent)
+  GridPortion{Dc,Dp,G}(parent,cell_to_parent_cell,node_to_parent_node,cell_to_nodes)
 end
 
 """
